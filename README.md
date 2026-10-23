@@ -1,152 +1,197 @@
-# DevPilot AI 🚀
+# DevPilot AI / IntelliResearch 🚀
 
-DevPilot AI is an AI software engineering agent designed to investigate Python bugs, search codebases, propose precise code fixes, and verify them using automated tests.
+DevPilot AI (IntelliResearch) is an evidence-based AI research and software engineering agent designed to investigate codebases, gather multi-source evidence, evaluate conflicting claims, synthesize grounded reports, and persist findings to a persistent SQLite memory library with report comparison.
 
 ---
 
 ## 📁 Project Structure
 
 ```text
-DevPilot AI/
+DevPilot AI / IntelliResearch
 ├── app/
-│   ├── __init__.py        # App package marker
-│   ├── agent/
-│   │   ├── __init__.py    # Agent exports
-│   │   ├── orchestrator.py# Bounded investigation loop & deterministic decision policy
-│   │   └── state.py       # Typed Pydantic models (Steps, Evidence, Report)
-│   └── tools/
-│       ├── __init__.py    # Tools exports (list_project_files, search_code, resolve_safe_path)
-│       ├── code_search.py # Stream-based text search within Python source files
+│   ├── __init__.py            # App package marker
+│   ├── agent/                 # Day 3: Codebase Investigation Agent
+│   │   ├── __init__.py        # Agent exports
+│   │   ├── orchestrator.py    # Bounded codebase loop & deterministic decision policy
+│   │   └── state.py           # Typed Pydantic models (Steps, Evidence, Report)
+│   ├── research/              # Day 4, 5 & 6: Research Engine & Persistent Memory
+│   │   ├── __init__.py        # Research exports
+│   │   ├── comparison.py      # Day 6: Deterministic report comparison service
+│   │   ├── database.py        # Day 6: SQLite persistent storage & parameterized queries
+│   │   ├── evaluator.py       # Source deduplication, conflict detection & sanitization
+│   │   ├── grounding.py       # Day 5: Strict hallucination defense & source verification
+│   │   ├── llm.py             # Day 5: Provider-agnostic LLM client (Groq, Ollama, OpenAI)
+│   │   ├── orchestrator.py    # Research workflow & deterministic fallback
+│   │   ├── planner.py         # Subquery planning and query decomposition
+│   │   ├── providers.py       # SearchProvider interface & DeterministicMockSearchProvider
+│   │   └── state.py           # Typed models (SubQuery, SourceDocument, ResearchReport, etc.)
+│   └── tools/                 # Day 2: Codebase Inspection Tools
+│       ├── __init__.py        # Tools exports (list_project_files, search_code, resolve_safe_path)
+│       ├── code_search.py     # Stream-based text search within Python source files
 │       └── project_inspector.py # Directory tree walker with ignored dirs and limits
+├── static/                 # Day 7: Web UI static assets
+│   ├── app.js             # Vanilla ES6 client: research, history, compare modal
+│   ├── index.html         # Responsive research dashboard UI
+│   └── style.css          # Dark-theme design, status pills, and responsive layout
 ├── tests/
-│   ├── __init__.py        # Tests package marker
-│   ├── test_agent.py      # Day 3 agent unit & integration tests (10 tests)
-│   ├── test_main.py       # Day 1 endpoint tests (GET / and GET /health)
-│   └── test_tools.py      # Day 2 tool unit & security tests (21 tests)
-├── .gitignore             # Ignores virtual environments, caches, and secrets
-├── main.py                # FastAPI app entry point with investigation & tools API endpoints
-├── README.md              # Project documentation and quickstart guide
-└── requirements.txt       # Production & testing dependencies
+│   ├── __init__.py            # Tests package marker
+│   ├── test_agent.py          # Day 3 agent tests (10 tests)
+│   ├── test_database_and_history.py # Day 6 database & comparison tests (13 tests)
+│   ├── test_evidence_synthesis.py   # Day 11 evidence synthesis & conflict distinction (7 tests)
+│   ├── test_evidence_validation.py  # Day 10 URL validation, SSRF guard & traceability (10 tests)
+│   ├── test_llm_grounding.py  # Day 5 LLM & grounding tests (12 tests)
+│   ├── test_main.py           # Day 1 endpoint tests (2 tests)
+│   ├── test_real_search.py    # Day 9 real-source search provider tests (10 tests)
+│   ├── test_research.py       # Day 4 research agent tests (15 tests)
+│   ├── test_tools.py          # Day 2 tool unit & security tests (21 tests)
+│   └── test_ui.py             # Day 7 & 8 Web UI integration tests (10 tests)
+├── .env.example               # Safe environment variable configuration template
+├── .gitignore                 # Excludes venvs, caches, secrets (.env), and databases (*.db)
+├── main.py                    # FastAPI app entry point with research, memory, and tool APIs
+├── README.md                  # Project documentation and quickstart guide
+└── requirements.txt           # Production & testing dependencies
 ```
 
 ---
 
-## 🛠️ Windows Setup Guide
+## 🗄️ Database Schema & Storage Behavior (Day 6)
 
-Follow these steps using **Command Prompt (cmd)** or **PowerShell**.
+IntelliResearch uses Python's built-in `sqlite3` engine. Local databases are stored at `data/research_memory.db` (configurable via `DATABASE_PATH`). All `.db` and `.sqlite` files are excluded from Git via `.gitignore`.
 
-### 1. Check Python Installation
-Make sure Python 3.10+ is installed:
-```powershell
-python --version
+### SQLite Schema (`research_records` Table):
+```sql
+CREATE TABLE IF NOT EXISTS research_records (
+    id TEXT PRIMARY KEY,               -- UUID4 string
+    question TEXT NOT NULL,            -- Original user research question
+    status TEXT NOT NULL,              -- 'completed' or 'insufficient'
+    report_json TEXT NOT NULL,         -- Full serialized ResearchReport (JSON)
+    sources_summary_json TEXT NOT NULL,-- List of sources with URLs and IDs
+    limitations_json TEXT NOT NULL,    -- Caveats, mock notices, or conflicts
+    created_at TEXT NOT NULL,          -- ISO 8601 UTC timestamp
+    updated_at TEXT NOT NULL           -- ISO 8601 UTC timestamp
+);
+CREATE INDEX IF NOT EXISTS idx_research_question ON research_records (question);
+CREATE INDEX IF NOT EXISTS idx_research_created ON research_records (created_at DESC);
 ```
 
-### 2. Create a Virtual Environment
-```powershell
-python -m venv venv
-```
+### Safety & Privacy Guarantees:
+- **Parameterized SQL**: All database operations use `?` placeholders to eliminate SQL injection vulnerabilities.
+- **Zero Secret Storage**: API keys, auth tokens, and system secrets are strictly excluded from the database.
+- **Untrusted Input Treatment**: Web snippets and model outputs are validated and escaped prior to storage.
 
-### 3. Activate the Virtual Environment
-- **PowerShell**:
+### How to Back Up or Reset the Database:
+- **Backup**:
   ```powershell
-  .\venv\Scripts\Activate.ps1
+  copy data\research_memory.db data\research_memory_backup.db
   ```
-- **Command Prompt (CMD)**:
-  ```cmd
-  venv\Scripts\activate.bat
+- **Reset**:
+  ```powershell
+  Remove-Item data\research_memory.db
   ```
+  *(The database and schema are recreated automatically on the next request).*
 
-### 4. Install Dependencies
-```powershell
-pip install -r requirements.txt
+---
+
+## 📚 Persistent Research Memory APIs (Day 6)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/research` | Executes research, grounds findings, and permanently saves to SQLite memory. |
+| `GET` | `/api/research` | Lists saved research records with pagination (`limit`, `offset`). |
+| `GET` | `/api/research/search?q=...` | Searches previous questions and reports using SQL pattern matching. |
+| `GET` | `/api/research/compare?id_a=...&id_b=...` | Deterministically compares two saved reports for shared, unique, and conflicting findings. |
+| `GET` | `/api/research/{research_id}` | Retrieves a complete saved research record by ID. |
+| `DELETE` | `/api/research/{research_id}` | Deletes a research record from memory. |
+
+### 1. Execute & Save Research (`POST /api/research`)
+```json
+// Request:
+{
+  "question": "What is FastAPI and how does it perform?",
+  "max_subqueries": 3,
+  "max_sources": 6,
+  "use_llm": false
+}
+
+// Response (HTTP 201 Created):
+{
+  "id": "e6a2139b-468a-4467-8eb1-71649e414c10",
+  "question": "What is FastAPI and how does it perform?",
+  "status": "completed",
+  "created_at": "2026-10-22T02:07:00Z",
+  "updated_at": "2026-10-22T02:07:00Z",
+  "report": { ... }
+}
 ```
+
+### 2. Compare Two Reports (`GET /api/research/compare?id_a=...&id_b=...`)
+```json
+{
+  "id_a": "rec-1",
+  "id_b": "rec-2",
+  "question_a": "FastAPI advantages",
+  "question_b": "Python language background",
+  "shared_findings": [
+    "FastAPI is a modern web framework for Python. [S1]"
+  ],
+  "findings_only_in_a": [
+    "Independent TechEmpower benchmarks show high throughput. [S2]"
+  ],
+  "findings_only_in_b": [
+    "CPython uses a GIL for memory safety. [S1]"
+  ],
+  "conflicting_claims": [],
+  "sources_a": [ ... ],
+  "sources_b": [ ... ],
+  "comparison_summary": "Comparison between 'rec-1' and 'rec-2': Found 1 shared finding(s), 1 finding(s) unique to report A, 1 finding(s) unique to report B, and 0 conflicting claim(s) requiring review."
+}
+```
+
+---
+
+## 🖥️ Interactive Web UI Dashboard (Day 7)
+
+IntelliResearch features an interactive dark-theme Web UI served directly by FastAPI at `/dashboard` (or `/ui`):
+
+- **Query Workspace**: Submit research questions with customizable subquery count (1-5), max sources (3-12), and optional LLM toggle.
+- **Evidence-Grounded Reports**: Displays executive summary, findings with source citation tags (e.g., `[S1]`, `[S2]`), clickable verified source URLs, and conflict warnings.
+- **Research Library Sidebar**: Real-time listing of saved research records with search filtering, status badges, and single-click deletion with safety confirmation.
+- **Side-by-Side Comparison**: Select any 2 research records to launch an interactive comparison modal displaying shared findings, unique findings, and conflicting claims.
+- **Zero-Dependency Architecture**: Built using native Vanilla HTML5/CSS3/JavaScript (ES6+) with strict HTML escaping to defend against prompt injection/XSS.
 
 ---
 
 ## 🏃 Running the Application
 
-Start the local development server on port **3000**:
+Start the local server:
 ```powershell
-uvicorn main:app --reload --port 3000
+uvicorn main:app --reload --port 8080
 ```
-
-The server is available at:
-- **Base URL**: [http://127.0.0.1:3000](http://127.0.0.1:3000)
-- **Health Check**: [http://127.0.0.1:3000/health](http://127.0.0.1:3000/health)
-- **Interactive Swagger Docs**: [http://127.0.0.1:3000/docs](http://127.0.0.1:3000/docs)
-- **Alternative Redoc**: [http://127.0.0.1:3000/redoc](http://127.0.0.1:3000/redoc)
-
----
-
-## 🤖 Investigation Agent API
-
-### Endpoint: `POST /api/agent/investigate`
-
-Coordinates a bounded investigation workflow within the codebase:
-1. Maps project layout.
-2. Extracts high-signal candidate terms (functions, identifiers, error names, quoted phrases).
-3. Searches codebase files and collects matching lines with 1-indexed numbers.
-4. Synthesizes a structured report while strictly distinguishing verifiable **evidence** from unconfirmed **hypotheses**.
-
-#### Request Example:
-```json
-{
-  "bug_description": "read_health endpoint returns unexpected status",
-  "max_steps": 5
-}
-```
-
-#### Response Example:
-```json
-{
-  "bug_description": "read_health endpoint returns unexpected status",
-  "status": "completed",
-  "total_steps": 2,
-  "steps_taken": [
-    {
-      "step_number": 1,
-      "thought": "Inspect the project directory to map the codebase layout and locate Python files.",
-      "action": "inspect_project",
-      "parameters": {},
-      "observation": { "success": true, "tool_name": "inspect_project", ... }
-    },
-    {
-      "step_number": 2,
-      "thought": "Search the Python source files for candidate symbol or keyword 'read_health'.",
-      "action": "search_code",
-      "parameters": { "query": "read_health" },
-      "observation": { "success": true, "tool_name": "search_code", ... }
-    }
-  ],
-  "observed_evidence": [
-    {
-      "file": "main.py",
-      "line_number": 67,
-      "line_content": "def read_health():",
-      "search_query": "read_health"
-    }
-  ],
-  "suspected_root_cause": "Candidate symbols (read_health) were located in main.py. These code locations may relate to the reported issue, but root cause requires manual verification.",
-  "summary": "Investigation completed across 2 step(s). Found 1 matching evidence line(s) across 1 file(s)."
-}
-```
+- **Web UI Dashboard:** [http://127.0.0.1:8080/dashboard](http://127.0.0.1:8080/dashboard) (or `/ui`)
+- **Swagger Documentation:** [http://127.0.0.1:8080/docs](http://127.0.0.1:8080/docs)
+- **Health Check:** [http://127.0.0.1:8080/health](http://127.0.0.1:8080/health)
 
 ---
 
 ## 🧪 Running Automated Tests
 
-Run the complete test suite using `pytest`:
+Run all 110 tests offline:
 ```powershell
 python -m pytest -v
 ```
-*(Or `.\venv\Scripts\python.exe -m pytest -v`)*
 
 ---
 
-## 🛣️ Roadmap
+## 🛣️ Project Milestones
 
-- **Day 1**: Project foundation, FastAPI setup, and automated endpoint tests. *(Completed)*
+- **Day 1**: Foundation, FastAPI setup, and automated endpoint tests. *(Completed)*
 - **Day 2**: Codebase inspection tools (directory scanner, file reader, safe code search). *(Completed)*
-- **Day 3**: Investigation agent (bounded orchestrator, deterministic policy, evidence vs hypothesis separation). *(Completed)*
-- **Day 4**: Fix proposal engine & patch generation.
-- **Day 5**: Automated fix verification & regression testing.
+- **Day 3**: Codebase investigation agent (bounded orchestrator, deterministic policy). *(Completed)*
+- **Day 4**: Evidence-based research agent (query planning, source collection, conflict detection, verifiable reports). *(Completed)*
+- **Day 5**: LLM integration, prompt injection isolation, grounding validator, and offline resilience. *(Completed)*
+- **Day 6**: Persistent research memory (SQLite library, history APIs, report comparison, search & deletion). *(Completed)*
+- **Day 7**: Interactive Web UI Dashboard (modern dark-theme interface, research execution, library search, report comparison). *(Completed)*
+- **Day 8**: Frontend & backend verification (resilience, timeout safeguards, validation schemas, history sync). *(Completed)*
+- **Day 9**: Real-source web retrieval (DuckDuckGo live provider, Tavily adapter, search provider factory, offline fallback). *(Completed)*
+- **Day 10**: Evidence validation & research quality (strict URL/SSRF protection, canonical deduplication, claim traceability, explainable quality signals). *(Completed)*
+- **Day 11**: Evidence-grounded synthesis (fact vs. inference classification, strong dispute vs. scope contrast, cross-provider comparison normalization). *(Completed)*

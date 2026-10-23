@@ -25,6 +25,12 @@ secrets/
 *.pem
 *.key
 
+# Local Databases
+*.db
+*.sqlite
+*.sqlite3
+data/
+
 # IDE and Editor configurations
 .vscode/
 .idea/

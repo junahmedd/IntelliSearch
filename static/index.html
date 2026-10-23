@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IntelliResearch — Evidence-Based AI Research Agent</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%200%20100%20100%22><text y=%22.9em%22 font-size=%2290%22>🧭</text></svg>">
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="app-header">
+    <div class="logo-area">
+      <span class="logo-icon">🧭</span>
+      <h1 class="logo-title">IntelliResearch</h1>
+      <span class="badge-tag">Evidence-Based AI</span>
+    </div>
+    <nav class="header-links">
+      <a href="/docs" target="_blank" rel="noopener noreferrer" class="nav-link">
+        <span>📖</span>
+        <span>API Docs</span>
+      </a>
+      <a href="/health" target="_blank" rel="noopener noreferrer" class="nav-link">
+        <span>🟢</span>
+        <span>Health</span>
+      </a>
+    </nav>
+  </header>
+
+  <!-- Main Container -->
+  <div class="app-container">
+    <!-- Sidebar: Research Memory & History -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title-row">
+          <span class="sidebar-title">Research Library</span>
+          <div style="display: flex; gap: 0.35rem;">
+            <button id="refreshHistoryBtn" class="btn-sm" title="Refresh saved research list">🔄 Refresh</button>
+            <button id="compareBtn" class="btn-sm" title="Select 2 reports to compare" disabled>⚖️ Compare</button>
+          </div>
+        </div>
+        <div class="search-input-wrap">
+          <input
+            type="search"
+            id="historySearch"
+            class="search-input"
+            placeholder="Search saved research..."
+            autocomplete="off"
+          />
+        </div>
+      </div>
+      <div id="historyList" class="history-list">
+        <!-- Rendered by app.js -->
+        <div class="empty-state" style="padding: 2rem 0.5rem; font-size: 0.85rem;">
+          <div class="spinner" style="margin: 0 auto 0.75rem;"></div>
+          <p>Loading research library...</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="main-content">
+      <!-- Research Query Card -->
+      <section class="card">
+        <h2 class="card-title">
+          <span>🔬</span>
+          <span>New Research Investigation</span>
+        </h2>
+        <div class="form-group">
+          <textarea
+            id="questionInput"
+            class="input-textarea"
+            placeholder="Enter an evidence-based research question (e.g. 'What are the main performance considerations for FastAPI vs Flask?')..."
+          ></textarea>
+        </div>
+        <div class="form-controls-row">
+          <div class="controls-group">
+            <label class="control-item">
+              <span>Subqueries:</span>
+              <select id="subqueriesSelect" class="control-select">
+                <option value="1">1 subquery</option>
+                <option value="2">2 subqueries</option>
+                <option value="3" selected>3 subqueries</option>
+                <option value="4">4 subqueries</option>
+                <option value="5">5 subqueries</option>
+              </select>
+            </label>
+
+            <label class="control-item">
+              <span>Max Sources:</span>
+              <select id="sourcesSelect" class="control-select">
+                <option value="3">3 sources</option>
+                <option value="6" selected>6 sources</option>
+                <option value="9">9 sources</option>
+                <option value="12">12 sources</option>
+              </select>
+            </label>
+
+            <label class="control-item" style="cursor: pointer;">
+              <input type="checkbox" id="useLlmCheckbox" style="cursor: pointer;" />
+              <span>Use LLM Synthesis</span>
+            </label>
+          </div>
+
+          <button id="startResearchBtn" class="btn-primary">
+            <span id="btnSpinner" class="spinner" style="display: none;"></span>
+            <span id="btnText">Start Research</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Active Research Report Display -->
+      <section id="reportContainer">
+        <div class="empty-state">
+          <div class="empty-icon">🔬</div>
+          <h3 style="margin-bottom: 0.5rem; color: var(--text-primary);">No Report Loaded</h3>
+          <p>Type a research question above and click <strong>"Start Research"</strong> or pick an existing investigation from history.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Comparison Modal -->
+  <div id="compareModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="comparisonTitle" style="font-size: 1.15rem; font-weight: 600;">Report Comparison</h3>
+        <button id="closeCompareModal" class="btn-icon" style="font-size: 1.25rem;" title="Close modal">&times;</button>
+      </div>
+      <div id="comparisonBody" class="modal-body">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
